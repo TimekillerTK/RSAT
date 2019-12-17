@@ -1,72 +1,57 @@
-# Initial script source from : Source: http://woshub.com/install-rsat-feature-windows-10-powershell/ 
-# Modify to be more automated and easy
-$currentWU = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" | select -ExpandProperty UseWUServer 
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 0 
-Restart-Service wuauserv 
-Get-WindowsCapability -Name RSAT* -Online | Add-WindowsCapability –Online 
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value $currentWU 
-Restart-Service wuauserv 
-
-# Command to test if everything is installed: 
-Get-WindowsCapability -Name RSAT* -Online | Select-Object -Property DisplayName, State 
-
-
-# Main Loop below
-Get-WindowsCapability -name RSAT* -Online | ForEach-Object {
-    If($_ -eq "Installed"){
-        Write-Output "True!!!!"
-    }
-    else {
-        Write-Output "FALSE"
-    }
-}
-
-
-if ((Get-WindowsCapability -name RSAT* -Online).State -contains "NotPresent") {
-    Write-Output (Get-WindowsCapability -name RSAT* -Online).State
-    Write-Output "Something is Missing..."
-    Get-WindowsCapability -Name RSAT* -Online | Add-WindowsCapability -Online
-}
-else {
-    Write-Output "OK!"
-}
-
-
+# Check status of RSAT packages installed in a variable
 $check = Get-WindowsCapability -name RSAT* -Online
 
-foreach ($state in $check.State) {
-    If ($state -eq "NotPresent"){
-        Write-Output "It's Not Present"
-        Write-Output "Code would execute here...."
-        Write-Output $state
-    }
-    else {
-        Write-Output "This one is OK"
-    }
-}
+# Define $finishloop being false
+$finishloop = $false
 
-# Check status of RSAT packages installed and store them in an array (?)
-$check = Get-WindowsCapability -name RSAT* -Online
+# Memorize current values of registry keys that will be modified (To be added later)
+# $currentWU = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" | select -ExpandProperty UseWUServer
 
 # Loop through each individual object in the array
 foreach ($value in $check) {
+
     # Check if object state is NotPresent, if it is, proceed with it's installation
     If ($value.State -eq "NotPresent"){
-        # This block finds that something is not installs and then move to try to install it.
-        #Line below is just debug
-        Write-Output $value
-        try {
-            #Try to install it
-            Add-WindowsCapability -Name $value.Name –Online -ErrorAction Stop
-        }
-        catch {
-            $ErrorMessage = $_.Exception
-            Write-Output $ErrorMessage
-        }
+        # This block finds that something is not installs and then move to try to install it
+
+        do {
+            try {
+                #Try to install it
+                Add-WindowsCapability -Name $value.Name –Online -ErrorAction Continue
+
+                #If installed successfully, set $finishloop to $true, otherwise continue
+                if ($?) {
+                    Write-Output "$value installed successfully"
+                    $finishloop = $true
+                }
+            }
+            catch {
+                $ErrorMessage = $_.Exception
+                Write-Output $ErrorMessage
+            
+                if ($ErrorMessage -like "*0x800f0954*") {
+                    Write-Host "Error contains the string 0x800f0954..." -ForegroundColor Cyan
+                    New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType ExpandString -Name LocalSourcePath
+                    New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType DWord -Name RepairContentServerSource -Value 2
+
+                }
+                elseif ($ErrorMessage -like "*0x8024002e*") {
+                    Write-Host "Error contains the string 0x8024002e..." -ForegroundColor Cyan
+                    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 0
+
+                    Write-Host "Restarting service wuauserv"
+                    Restart-Service wuauserv
+                }
+                else {
+                    # Unknown error, end loop
+                    Write-Host "Unknown error..." -ForegroundColor Yellow
+                    $finishloop = $true
+                }
+                }
+            } while ($finishloop -eq $false)
     }
     else {
-        # This block says everything is OK
-        #Line below is just debug
-        Write-Output "This one is OK"
+        # This block says the App is installed.
+        Write-Host $value.name"is already installed, skipping..." -ForegroundColor White
     }
 }
