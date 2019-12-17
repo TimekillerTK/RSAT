@@ -21,21 +21,24 @@ foreach ($value in $check) {
 
                 #If installed successfully, set $finishloop to $true, otherwise continue
                 if ($?) {
-                    Write-Output "$value installed successfully"
+                    Write-Output $value.name"installed successfully"
                     $finishloop = $true
                 }
             }
             catch {
+                # In case of error, write error message that comes up
                 $ErrorMessage = $_.Exception
                 Write-Output $ErrorMessage
             
                 if ($ErrorMessage -like "*0x800f0954*") {
+                    # In case of error 0x800f0954, perform the following tasks to fix it
                     Write-Host "Error contains the string 0x800f0954..." -ForegroundColor Cyan
                     New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType ExpandString -Name LocalSourcePath
                     New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType DWord -Name RepairContentServerSource -Value 2
 
                 }
                 elseif ($ErrorMessage -like "*0x8024002e*") {
+                    # In case of error 0x8024002e, perform the following tasks to fix it
                     Write-Host "Error contains the string 0x8024002e..." -ForegroundColor Cyan
                     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 0
 
@@ -52,6 +55,6 @@ foreach ($value in $check) {
     }
     else {
         # This block says the App is installed.
-        Write-Host $value.name"is already installed, skipping..." -ForegroundColor White
+        Write-Host $value.name"is already installed, skipping..."
     }
 }
