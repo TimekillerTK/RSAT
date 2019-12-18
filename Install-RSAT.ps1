@@ -1,3 +1,27 @@
+function Test-RegistryValue {
+
+    param (
+     [parameter(Mandatory=$true)] 
+     [ValidateNotNullOrEmpty()]$Path,
+    
+     [parameter(Mandatory=$true)]
+     [ValidateNotNullOrEmpty()]$Value
+    )
+    
+    try {
+        Get-ItemProperty -Path $Path -Name $Value -ErrorAction Stop | Out-Null
+        return $true
+    }
+    
+    catch {
+        return $false
+    }
+    
+}
+    
+Test-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Value UseWUServer
+    
+<#
 # Check status of RSAT packages installed in a variable
 $check = Get-WindowsCapability -name RSAT* -Online
 
@@ -58,3 +82,4 @@ foreach ($value in $check) {
         Write-Host $value.name"is already installed, skipping..."
     }
 }
+#>
