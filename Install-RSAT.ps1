@@ -21,7 +21,7 @@ foreach ($value in $check) {
 
                 #If installed successfully, set $finishloop to $true, otherwise continue
                 if ($?) {
-                    Write-Output $value.name"installed successfully"
+                    Write-Output $value.name "installed successfully"
                     $finishloop = $true
                 }
             }
