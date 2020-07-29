@@ -33,6 +33,7 @@ foreach ($value in $check) {
                 if ($ErrorMessage -like "*0x800f0954*") {
                     # In case of error 0x800f0954, perform the following tasks to fix it
                     Write-Host "Error contains the string 0x800f0954..." -ForegroundColor Cyan
+                    New-Item -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing
                     New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType ExpandString -Name LocalSourcePath
                     New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType DWord -Name RepairContentServerSource -Value 2
 
@@ -55,6 +56,6 @@ foreach ($value in $check) {
     }
     else {
         # This block says the App is installed.
-        Write-Host $value.name"is already installed, skipping..."
+        Write-Host $value.name "is already installed, skipping..."
     }
 }
