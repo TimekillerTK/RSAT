@@ -1,23 +1,24 @@
 # Should also create a check to validate powershell version as 7+ and to validate running as admin.
-function Test-RegistryValue {
 
-    param (
-     [parameter(Mandatory=$true)] 
-     [ValidateNotNullOrEmpty()]$Path,
-    
-     [parameter(Mandatory=$true)]
-     [ValidateNotNullOrEmpty()]$Value
-    )
-    
-    try {
-        Get-ItemProperty -Path $Path -Name $Value -ErrorAction Stop | Set-Variable -Name Out
-        return $true
+# Function for the building block of objects which will store information about current registry status
+function Store-RegistryValue ($Name, $Path, $PropertyType, $Value) {
+
+    # properties of the future objects
+    $properties = @{
+        
+        Name = $Name
+        Path = $Path
+        PropertyType = $PropertyType
+        Value = $Value
+
     }
+
+    # New object being created when function is called
+    $object = New-Object -TypeName psobject -Property $properties
     
-    catch {
-        return $false
-    }
-    
+    # Object is returned after function is called
+    return $object
+
 }
 
 
@@ -27,16 +28,56 @@ $savedRCSS = $false
 $savedWU = $false
 
 # Get a list of current registry values before making any changes
-# if (Test-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath){
+# if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath){
 #     $savedLSP = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "LocalSourcePath"
 # }
 
-# if (Test-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource){
+# if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource){
 #     $savedRCSS = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "RepairContentServerSource" | Select-Object -ExpandProperty RepairContentServerSource
 # }
 
-if (Test-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Value UseWUServer) {
-    $savedWU = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" | Select-Object -ExpandProperty UseWUServer
+# Set default values to $null 
+$UseWUServer = $null
+$LocalSourcePath = $null
+$RepairContentServerSource = $null
+
+# Check whether the items exist in Try/Catch blocks 
+try {
+    # ErrorAction Stop is necessary for the try/catch blocks to catch the error since it's a non-terminating error
+    $checkUseWUServer = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -ErrorAction Stop    
+    $UseWUServer = Store-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value $($checkUseWUServer.UseWUServer) -PropertyType DWord
+
+}
+catch {
+    $UseWUServer = "notexist"
+}
+
+try {
+    # ErrorAction Stop is necessary for the try/catch blocks to catch the error since it's a non-terminating error
+    $checkLocalSourcePath = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "LocalSourcePath" -ErrorAction Stop
+    $LocalSourcePath = Store-RegistryValue -Name LocalSourcePath -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -PropertyType DWord -Value $null
+    
+}
+catch {
+    $LocalSourcePath = "notexist"
+}
+
+try {
+    # ErrorAction Stop is necessary for the try/catch blocks to catch the error since it's a non-terminating error
+    $checkRepairContentServerSource = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "RepairContentServerSource" -ErrorAction Stop
+    $RepairContentServerSource = Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -PropertyType DWord -Name RepairContentServerSource -Value 2
+    
+}
+catch {
+    $RepairContentServerSource = "notexist"
+}
+
+
+
+
+if ($RepairContentServerSource) {
+    $UseWUServer = Store-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value $($checkUseWUServer.UseWUServer) -PropertyType DWord
+    #$savedWU = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" | Select-Object -ExpandProperty UseWUServer
 }
 
 
@@ -78,14 +119,14 @@ foreach ($value in $check) {
                     # In case of error 0x800f0954, perform the following tasks to fix it
                     Write-Host "Error contains the string 0x800f0954..." -ForegroundColor Cyan
 
-                    # if (Test-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath){
+                    # if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath){
                     #     $savedLSP = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "LocalSourcePath"
                     # }
                     # else {
                     #     $savedLSP = "notexist"
                     # }
 
-                    # if (Test-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource){
+                    # if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource){
                     #     $savedRCSS = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "RepairContentServerSource"
                     # }
                     # else {
@@ -100,7 +141,7 @@ foreach ($value in $check) {
                     # In case of error 0x8024002e, perform the following tasks to fix it
                     Write-Host "Error contains the string 0x8024002e..." -ForegroundColor Cyan
 
-                    # if (Test-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Value UseWUServer){
+                    # if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Value UseWUServer){
                     #     $savedWU = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer"
                     # }
 
@@ -142,11 +183,11 @@ else {
 $savedRCSS
 $savedWU
 
-If ($(Test-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath) -eq $false) {
+If ($(Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath) -eq $false) {
 
 }
 
-Test-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource
-Test-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Value UseWUServer
+Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource
+Store-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Value UseWUServer
 
 Remove-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -Name LocalSourcePath
