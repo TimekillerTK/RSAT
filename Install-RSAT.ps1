@@ -1,4 +1,5 @@
-# Should also create a check to validate powershell version as 7+ and to validate running as admin.
+#Requires -version 5.0
+#Requires -RunAsAdministrator
 
 # Function for the building block of objects which will store information about current registry status
 function Store-RegistryValue ($Name, $Path, $PropertyType, $Value, $Exists, $Changed) {
@@ -24,21 +25,6 @@ function Store-RegistryValue ($Name, $Path, $PropertyType, $Value, $Exists, $Cha
 }
 
 
-# Set default value of variable to false
-$savedLSP = $false
-$savedRCSS = $false
-$savedWU = $false
-
-# Get a list of current registry values before making any changes
-# if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath){
-#     $savedLSP = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "LocalSourcePath"
-# }
-
-# if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource){
-#     $savedRCSS = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "RepairContentServerSource" | Select-Object -ExpandProperty RepairContentServerSource
-# }
-
-
 # Check whether the items exist in Try/Catch blocks.
 # These blocks are objectively bad, rewrite later in a single function that is called for the different registry properties.
 try {
@@ -51,7 +37,7 @@ try {
     $key.Dispose()
 }
 catch {
-    $UseWUServer = Store-RegistryValue -Name UseWUServer -Exists $false -Changed $false
+    $UseWUServer = Store-RegistryValue -Name UseWUServer -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Exists $false -Changed $false
 }
 
 try {
@@ -64,7 +50,7 @@ try {
     $key.Dispose()
 }
 catch {
-    $LocalSourcePath = Store-RegistryValue -Name LocalSourcePath -Exists $false -Changed $false
+    $LocalSourcePath = Store-RegistryValue -Name LocalSourcePath -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Exists $false -Changed $false
 }
 
 try {
@@ -78,9 +64,8 @@ try {
 
 }
 catch {
-    $RepairContentServerSource = Store-RegistryValue -Name RepairContentServerSource -Exists $false -Changed $false
+    $RepairContentServerSource = Store-RegistryValue -Name RepairContentServerSource -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Exists $false -Changed $false
 }
-
 
 
 # Check status of RSAT packages installed in a variable
@@ -94,7 +79,7 @@ foreach ($value in $check) {
 
     # Check if object state is NotPresent, if it is, proceed with it's installation
     If ($value.State -eq "NotPresent"){
-        # This block finds that something is not installs and then move to try to install it
+        # This block finds that something is not installed and then moves on to try to install it
 
         do {
             try {
@@ -116,20 +101,6 @@ foreach ($value in $check) {
                     # In case of error 0x800f0954, perform the following tasks to fix it
                     Write-Host "Error contains the string 0x800f0954..." -ForegroundColor Cyan
 
-                    # if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value LocalSourcePath){
-                    #     $savedLSP = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "LocalSourcePath"
-                    # }
-                    # else {
-                    #     $savedLSP = "notexist"
-                    # }
-
-                    # if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Value RepairContentServerSource){
-                    #     $savedRCSS = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "RepairContentServerSource"
-                    # }
-                    # else {
-                    #     $savedRCSS = "notexist"
-                    # }
-
                     New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType ExpandString -Name LocalSourcePath
                     New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing -PropertyType DWord -Name RepairContentServerSource -Value 2
 
@@ -139,13 +110,9 @@ foreach ($value in $check) {
 
 
                 }
-                elseif ($ErrorMessage -like "*0x8024002e*") {
+                elseif (($ErrorMessage -like "*0x8024002e*") -or ($ErrorMessage -like "*0x8024402c*")) {
                     # In case of error 0x8024002e, perform the following tasks to fix it
-                    Write-Host "Error contains the string 0x8024002e..." -ForegroundColor Cyan
-
-                    # if (Store-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Value UseWUServer){
-                    #     $savedWU = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer"
-                    # }
+                    Write-Host "Error contains the string 0x8024002e or 0x8024402c..." -ForegroundColor Cyan
 
                     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 0
 
@@ -165,18 +132,36 @@ foreach ($value in $check) {
     }
     else {
         # This block says the App is installed.
-        Write-Host $value.name"is already installed, skipping..."
+        Write-Host "$($value.name) is already installed, skipping..."
     }
 }
 
 # Revert the changes made during script run
 # Cleanup happens here
+<# If a registry property has not changed, SKIP.
 
+However, if a registry property has changed, if it does NOT EXIST,
+-> delete the registry property
+
+Also, if a registry property has changed, if it DOES EXIST,
+-> Set the item property to the value stored in the object property
+#>
+Write-Host "Reverting changes made to registry..."
 $LocalSourcePath, $RepairContentServerSource, $UseWUServer | ForEach-Object {
-    Write-Host "Reverting changes made to registry..."
+
     if ($_.Changed -eq $true) {
         Write-Host "Currently fixing $($_.Name)" -ForegroundColor Magenta
+
+        If ($_.Exists -eq $false) {
+            # Since this property did not exist before, it should be deleted
+            Write-Host "--- Deleting property $($_.Name) ---" -ForegroundColor Yellow
+            Remove-ItemProperty -Path $_.path -Name $_.name
+        } else {
+            # This property existed, so we need to set the previous value
+            Write-Host "--- Resetting property $($_.Name) to default---"
+            Set-ItemProperty -Path $_.path -Name $_.name -Value $_.value
+        }
     } else {
-        Write-Host "No change to $($_.Name)..." -ForegroundColor Cyan
+        Write-Host "No change to $($_.Name), skipping..."
     }
 }
