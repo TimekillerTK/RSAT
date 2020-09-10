@@ -7,12 +7,12 @@ function Store-RegistryValue ($Name, $Path, $PropertyType, $Value, $Exists, $Cha
     # properties of the future objects
     $properties = @{
         
-        Name = $Name
-        Path = $Path
+        Name         = $Name
+        Path         = $Path
         PropertyType = $PropertyType
-        Value = $Value
-        Exists = [bool]$Exists
-        Changed = [bool]$Changed
+        Value        = $Value
+        Exists       = [bool]$Exists
+        Changed      = [bool]$Changed
 
     }
 
@@ -24,6 +24,7 @@ function Store-RegistryValue ($Name, $Path, $PropertyType, $Value, $Exists, $Cha
 
 }
 
+# Replaced Try/Catch blocks with the following function:
 function Store-RegistryValue2 ($Name, $Path) {
 
     try {
@@ -41,52 +42,6 @@ function Store-RegistryValue2 ($Name, $Path) {
 
 }
 
-<#
-# Check whether the items exist in Try/Catch blocks.
-# These blocks are objectively bad, rewrite later in a single function that is called for the different registry properties.
-try {
-    # ErrorAction Stop is necessary for the try/catch blocks to catch the error since it's a non-terminating error
-    $checkUseWUServer = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -ErrorAction Stop    
-    
-    # Runs only if there's no error
-    $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU')
-    $UseWUServer = Store-RegistryValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value $($checkUseWUServer.UseWUServer) -PropertyType $key.GetValueKind('UseWUServer') -Exists $true -Changed $false
-    $key.Dispose()
-}
-catch {
-    $UseWUServer = Store-RegistryValue -Name UseWUServer -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Exists $false -Changed $false
-}
-
-try {
-    # ErrorAction Stop is necessary for the try/catch blocks to catch the error since it's a non-terminating error
-    $checkLocalSourcePath = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "LocalSourcePath" -ErrorAction Stop    
-
-    # Runs only if there's no error
-    $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing')
-    $LocalSourcePath = Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "LocalSourcePath" -Value $($checkLocalSourcePath.LocalSourcePath) -PropertyType $key.GetValueKind('LocalSourcePath') -Exists $true -Changed $false
-    $key.Dispose()
-}
-catch {
-    $LocalSourcePath = Store-RegistryValue -Name LocalSourcePath -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Exists $false -Changed $false
-}
-
-try {
-
-    # ErrorAction Stop is necessary for the try/catch blocks to catch the error since it's a non-terminating error
-    $checkRepairContentServerSource = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "RepairContentServerSource" -ErrorAction Stop    
-    # Runs only if there's no error
-    $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing')
-    $RepairContentServerSource = Store-RegistryValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Name "RepairContentServerSource" -Value $($checkRepairContentServerSource.RepairContentServerSource) -PropertyType $key.GetValueKind('RepairContentServerSource')  -Exists $true  -Changed $false
-    $key.Dispose()
-
-}
-catch {
-    $RepairContentServerSource = Store-RegistryValue -Name RepairContentServerSource -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Exists $false -Changed $false
-}
-
-#>
-
-# Replaced Try/Catch blocks with the following:
 $UseWUServer = Store-RegistryValue2 -Name UseWUServer -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
 $LocalSourcePath = Store-RegistryValue2 -Name LocalSourcePath -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
 $RepairContentServerSource = Store-RegistryValue2 -Name RepairContentServerSource -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
@@ -102,7 +57,7 @@ $finishloop = $false
 foreach ($value in $check) {
 
     # Check if object state is NotPresent, if it is, proceed with it's installation
-    If ($value.State -eq "NotPresent"){
+    If ($value.State -eq "NotPresent") {
         # This block finds that something is not installed and then moves on to try to install it
 
         do {
@@ -151,8 +106,8 @@ foreach ($value in $check) {
                     Write-Host "Unknown error..." -ForegroundColor Yellow
                     $finishloop = $true
                 }
-                }
-            } while ($finishloop -eq $false)
+            }
+        } while ($finishloop -eq $false)
     }
     else {
         # This block says the App is installed.
@@ -162,14 +117,7 @@ foreach ($value in $check) {
 
 # Revert the changes made during script run
 # Cleanup happens here
-<# If a registry property has not changed, SKIP.
 
-However, if a registry property has changed, if it does NOT EXIST,
--> delete the registry property
-
-Also, if a registry property has changed, if it DOES EXIST,
--> Set the item property to the value stored in the object property
-#>
 Write-Host "Reverting changes made to registry..."
 $LocalSourcePath, $RepairContentServerSource, $UseWUServer | ForEach-Object {
 
@@ -180,12 +128,19 @@ $LocalSourcePath, $RepairContentServerSource, $UseWUServer | ForEach-Object {
             # Since this property did not exist before, it should be deleted
             Write-Host "--- Deleting property $($_.Name) ---" -ForegroundColor Yellow
             Remove-ItemProperty -Path $_.path -Name $_.name
-        } else {
+        }
+        else {
             # This property existed, so we need to set the previous value
             Write-Host "--- Resetting property $($_.Name) to default---"
             Set-ItemProperty -Path $_.path -Name $_.name -Value $_.value
+            
+            if ($_.name -eq "UseWUServer") {
+                Write-Host "--- Restarting service wuauserv ---"
+                Restart-Service wuauserv
+            }
         }
-    } else {
+    }
+    else {
         Write-Host "No change to $($_.Name), skipping..."
     }
 }
