@@ -1,6 +1,7 @@
 # RSAT
 Script to automatically reinstall RSAT tools on your workstation after a windows feature update. Automatically reverts chages to registry after completion.
 
+
 # Requirements
 * Powershell 7+
 * Must be run with administrative privileges due to the following cmdlets:
