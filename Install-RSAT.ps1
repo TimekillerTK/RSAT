@@ -24,7 +24,24 @@ function Store-RegistryValue ($Name, $Path, $PropertyType, $Value, $Exists, $Cha
 
 }
 
+function Store-RegistryValue2 ($Name, $Path) {
 
+    try {
+        $check = Get-ItemProperty -Name $Name -Path $Path -ErrorAction Stop
+
+        # Runs only if there's no error
+        $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$($Path -replace '^.{6}','')")
+        $output = Store-RegistryValue -Path $Path -Name $Name -Value $($check.$Name) -PropertyType $key.GetValueKind($Name) -Exists $true -Changed $false
+        return $output
+    }
+    catch {
+        $output = Store-RegistryValue -Name $Name -Path $Path -Exists $false -Changed $false
+        return $output
+    }
+
+}
+
+<#
 # Check whether the items exist in Try/Catch blocks.
 # These blocks are objectively bad, rewrite later in a single function that is called for the different registry properties.
 try {
@@ -66,6 +83,13 @@ try {
 catch {
     $RepairContentServerSource = Store-RegistryValue -Name RepairContentServerSource -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing" -Exists $false -Changed $false
 }
+
+#>
+
+# Replaced Try/Catch blocks with the following:
+$UseWUServer = Store-RegistryValue2 -Name UseWUServer -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+$LocalSourcePath = Store-RegistryValue2 -Name LocalSourcePath -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
+$RepairContentServerSource = Store-RegistryValue2 -Name RepairContentServerSource -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
 
 
 # Check status of RSAT packages installed in a variable
