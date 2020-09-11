@@ -1,11 +1,11 @@
-#Requires -version 5.0
+#Requires -version 5.1
 #Requires -RunAsAdministrator
 
 # Function for the building block of objects which will store information about current registry status
-function Store-RegistryValue ($Name, $Path, $PropertyType, $Value, $Exists, $Changed) {
+function New-RegKeyInfo ($Name, $Path) {
 
-    # properties of the future objects
-    $properties = @{
+        # properties of the future objects
+        $properties = @{
         
         Name         = $Name
         Path         = $Path
@@ -18,33 +18,42 @@ function Store-RegistryValue ($Name, $Path, $PropertyType, $Value, $Exists, $Cha
 
     # New object being created when function is called
     $object = New-Object -TypeName psobject -Property $properties
-    
-    # Object is returned after function is called
-    return $object
 
-}
-
-# Replaced Try/Catch blocks with the following function:
-function Store-RegistryValue2 ($Name, $Path) {
+    # Setting object properties
+    $object.Path = $Path
+    $object.Name = $Name
+    $object.Changed = $false
 
     try {
+
+        # Query the registry key
         $check = Get-ItemProperty -Name $Name -Path $Path -ErrorAction Stop
 
         # Runs only if there's no error
         $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$($Path -replace '^.{6}','')")
-        $output = Store-RegistryValue -Path $Path -Name $Name -Value $($check.$Name) -PropertyType $key.GetValueKind($Name) -Exists $true -Changed $false
-        return $output
+
+        # Set object properties
+        $object.Value = $($check.$Name)
+        $object.PropertyType = $key.GetValueKind($Name)
+        $object.Exists = $true
+
+        return $object
+
     }
     catch {
-        $output = Store-RegistryValue -Name $Name -Path $Path -Exists $false -Changed $false
-        return $output
+
+        # Runs only if $check returns an error
+        $object.Exists = $false
+
+        return $object
+
     }
 
 }
 
-$UseWUServer = Store-RegistryValue2 -Name UseWUServer -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
-$LocalSourcePath = Store-RegistryValue2 -Name LocalSourcePath -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
-$RepairContentServerSource = Store-RegistryValue2 -Name RepairContentServerSource -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
+$UseWUServer = New-RegKeyInfo -Name UseWUServer -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+$LocalSourcePath = New-RegKeyInfo -Name LocalSourcePath -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
+$RepairContentServerSource = New-RegKeyInfo -Name RepairContentServerSource -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Servicing"
 
 
 # Check status of RSAT packages installed in a variable
@@ -62,14 +71,12 @@ foreach ($value in $check) {
 
         do {
             try {
-                #Try to install it
-                Add-WindowsCapability -Name $value.Name –Online -ErrorAction Continue
+                # Try to install it
+                Add-WindowsCapability -Name $value.Name -Online -ErrorAction Stop
 
-                #If installed successfully, set $finishloop to $true, otherwise continue
-                if ($?) {
-                    Write-Output $value.name "installed successfully"
-                    $finishloop = $true
-                }
+                # This block will only run if the above command is successful
+                $finishloop = $true
+                Write-Host "$($value.name) installed successfully"
             }
             catch {
                 # In case of error, write error message that comes up
@@ -116,8 +123,8 @@ foreach ($value in $check) {
     }
 }
 
-# Revert the changes made during script run
-# Cleanup happens here
+#Revert the changes made during script run
+#Cleanup happens here
 
 Write-Host "Reverting changes made to registry..."
 $LocalSourcePath, $RepairContentServerSource, $UseWUServer | ForEach-Object {
@@ -142,6 +149,6 @@ $LocalSourcePath, $RepairContentServerSource, $UseWUServer | ForEach-Object {
         }
     }
     else {
-        Write-Host "No change to $($_.Name), skipping..."
+       Write-Output "No change to $($_.Name), skipping..."
     }
 }
