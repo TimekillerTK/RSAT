@@ -1,4 +1,4 @@
-#Requires -version 7.0
+#Requires -version 5.1
 #Requires -RunAsAdministrator
 
 # Function for the building block of objects which will store information about current registry status
@@ -71,14 +71,12 @@ foreach ($value in $check) {
 
         do {
             try {
-                #Try to install it
-                Add-WindowsCapability -Name $value.Name –Online -ErrorAction Continue
+                # Try to install it
+                Add-WindowsCapability -Name $value.Name -Online -ErrorAction Stop
 
-                #If installed successfully, set $finishloop to $true, otherwise continue
-                if ($?) {
-                    Write-Output $value.name "installed successfully"
-                    $finishloop = $true
-                }
+                # This block will only run if the above command is successful
+                $finishloop = $true
+                Write-Host "$($value.name) installed successfully"
             }
             catch {
                 # In case of error, write error message that comes up
@@ -125,8 +123,8 @@ foreach ($value in $check) {
     }
 }
 
-# Revert the changes made during script run
-# Cleanup happens here
+#Revert the changes made during script run
+#Cleanup happens here
 
 Write-Host "Reverting changes made to registry..."
 $LocalSourcePath, $RepairContentServerSource, $UseWUServer | ForEach-Object {
@@ -151,6 +149,6 @@ $LocalSourcePath, $RepairContentServerSource, $UseWUServer | ForEach-Object {
         }
     }
     else {
-        Write-Host "No change to $($_.Name), skipping..."
+       Write-Output "No change to $($_.Name), skipping..."
     }
 }
