@@ -1,14 +1,18 @@
 # RSAT
-Script to automatically reinstall RSAT tools on your workstation after a windows feature update. Automatically reverts chages to registry after completion.
+Script to automatically reinstall RSAT tools on your workstation after a windows feature update. Automatically reverts changes to registry after completion.
 
+What it does:
+* Stores current registry values in PSobjects
+* Attempts to install `RSAT*` packages
+* If fail - makes changes to registry based on windows error codes
+* After successful install of `RSAT*` packages, reverts changes to registry
+
+# How to Use
+* Clone the repo or download the `Install-RSAT.ps1` file.
+* Run in an administrative powershell prompt `.\Install-RSAT.ps1`
 
 # Requirements
-* Powershell 7+
+* Powershell 5.1+
 * Must be run with administrative privileges due to the following cmdlets:
   * Add-WindowsCapability
   * Restart-Service
-
-# Todo
-- ~~Add mechanism to reverse changes after script finishes, currently it must be done manually by the user~~
-  - Added
-- Tested only on PWSH7, test on 5.
