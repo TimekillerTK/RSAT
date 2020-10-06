@@ -97,15 +97,15 @@ foreach ($value in $check) {
 
 
                 }
-                elseif (($ErrorMessage -like "*0x8024002e*") -or ($ErrorMessage -like "*0x8024402c*")) {
+                elseif (($ErrorMessage -like "*0x8024002e*") -or ($ErrorMessage -like "*0x8024402c*") -or ($ErrorMessage -like "*0x8024500c*")) {
                     # In case of error 0x8024002e, perform the following tasks to fix it
-                    Write-Host "Error contains the string 0x8024002e or 0x8024402c..." -ForegroundColor Cyan
+                    Write-Host "Error contains the string 0x8024002e, 0x8024402c or 0x8024500c..." -ForegroundColor Cyan
 
                     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "UseWUServer" -Value 0
 
                     # flagging changes
                     $UseWUServer.Changed = $true
-
+                    s
                     Write-Host "Restarting service wuauserv"
                     Restart-Service wuauserv
                 }
